@@ -1650,31 +1650,31 @@ function ajax_update_province_session() {
 // Test function for debugging province session
 function test_province_session_debug() {
     if (current_user_can('manage_options')) { // Only show to admins
-        echo '<div style="position: fixed; top: 10px; right: 10px; background: #fff; border: 1px solid #ccc; padding: 10px; z-index: 999999; font-size: 12px;">';
-        echo '<h4>Province Session Debug</h4>';
+        echo '<div style="position: fixed; bottom: 10px; right: 10px; background: #fff; border: 1px solid #ccc; padding: 10px; z-index: 999999; font-size: 12px; max-width: 300px; box-shadow: 0 0 10px rgba(0,0,0,0.3);">';
+        echo '<h4 style="margin: 0 0 10px 0; color: #333;">Province Session Debug</h4>';
         
         // Test session functions
-        echo '<p><strong>has_province_session():</strong> ' . (has_province_session() ? 'TRUE' : 'FALSE') . '</p>';
+        echo '<p style="margin: 5px 0;"><strong>has_province_session():</strong> ' . (has_province_session() ? 'TRUE' : 'FALSE') . '</p>';
         
         $province = get_province_session_enhanced();
-        echo '<p><strong>get_province_session_enhanced():</strong> ' . ($province ? $province : 'NULL') . '</p>';
+        echo '<p style="margin: 5px 0;"><strong>get_province_session_enhanced():</strong> ' . ($province ? $province : 'NULL') . '</p>';
         
         // Test WooCommerce session
         if (function_exists('WC') && WC()->session) {
-            echo '<p><strong>WC Session:</strong> INITIALIZED</p>';
-            echo '<p><strong>Customer ID:</strong> ' . WC()->session->get_customer_id() . '</p>';
-            echo '<p><strong>Session Province:</strong> ' . WC()->session->get('selected_province') . '</p>';
+            echo '<p style="margin: 5px 0;"><strong>WC Session:</strong> INITIALIZED</p>';
+            echo '<p style="margin: 5px 0;"><strong>Customer ID:</strong> ' . WC()->session->get_customer_id() . '</p>';
+            echo '<p style="margin: 5px 0;"><strong>Session Province:</strong> ' . WC()->session->get('selected_province') . '</p>';
         } else {
-            echo '<p><strong>WC Session:</strong> NOT INITIALIZED</p>';
+            echo '<p style="margin: 5px 0;"><strong>WC Session:</strong> NOT INITIALIZED</p>';
         }
         
         // Test cookie
-        echo '<p><strong>Cookie Province:</strong> ' . (isset($_COOKIE['province']) ? $_COOKIE['province'] : 'NOT SET') . '</p>';
+        echo '<p style="margin: 5px 0;"><strong>Cookie Province:</strong> ' . (isset($_COOKIE['province']) ? $_COOKIE['province'] : 'NOT SET') . '</p>';
         
         // Test button to set province
         echo '<form method="post" style="margin-top: 10px;">';
         echo '<input type="hidden" name="test_province" value="ON">';
-        echo '<button type="submit" style="background: #0073aa; color: #fff; border: none; padding: 5px 10px; cursor: pointer;">Test Set Province ON</button>';
+        echo '<button type="submit" style="background: #0073aa; color: #fff; border: none; padding: 5px 10px; cursor: pointer; border-radius: 3px;">Test Set Province ON</button>';
         echo '</form>';
         
         echo '</div>';
