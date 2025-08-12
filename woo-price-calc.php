@@ -1555,10 +1555,8 @@ function set_province_session_enhanced($province) {
 
 // Enhanced province session retrieval
 function get_province_session_enhanced() {
+    error_log('=== get_province_session_enhanced() START ===');
     $province = null;
-    
-    // Debug: Log the function call
-    error_log('get_province_session_enhanced() called');
     
     // 1. Check WooCommerce session first
     if (function_exists('WC') && WC()->session) {
@@ -1602,23 +1600,35 @@ function get_province_session_enhanced() {
     }
     
     error_log('Final province result: ' . ($province ?: 'NULL'));
+    error_log('=== get_province_session_enhanced() END - RETURNING: ' . ($province ?: 'NULL') . ' ===');
     return $province;
 }
 
 // Check if province is set using session
 function has_province_session() {
-    $province = get_province_session_enhanced();
-    $result = $province !== null && $province !== '';
+    error_log('=== has_province_session() START ===');
     
-    // Debug logging
-    error_log('has_province_session() called - Province: ' . ($province ?: 'NULL') . ', Result: ' . ($result ? 'TRUE' : 'FALSE'));
+    $province = get_province_session_enhanced();
+    error_log('Province from get_province_session_enhanced(): ' . ($province ?: 'NULL'));
+    
+    $result = $province !== null && $province !== '';
+    error_log('Initial result calculation: ' . ($result ? 'TRUE' : 'FALSE'));
     
     // Force return FALSE if province is NULL to fix the logic issue
     if ($province === null) {
-        error_log('has_province_session() forcing FALSE because province is NULL');
+        error_log('Province is NULL, forcing return FALSE');
+        error_log('=== has_province_session() END - RETURNING FALSE ===');
         return false;
     }
     
+    if ($province === '') {
+        error_log('Province is empty string, forcing return FALSE');
+        error_log('=== has_province_session() END - RETURNING FALSE ===');
+        return false;
+    }
+    
+    error_log('Final result: ' . ($result ? 'TRUE' : 'FALSE'));
+    error_log('=== has_province_session() END - RETURNING ' . ($result ? 'TRUE' : 'FALSE') . ' ===');
     return $result;
 }
 
