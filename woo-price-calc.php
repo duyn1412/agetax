@@ -138,10 +138,11 @@ function age_verification_dialog() {
     // PHP code to generate the HTML for the form
     // Check if the province session exists
   
-    // Force show dialog for testing - comment this out later
-    // if (has_province_session()) {
-    //     return; // Don't show dialog if province is already set
-    // }
+    // Check if province session exists - if yes, don't show dialog
+    if (has_province_session()) {
+        error_log('Age verification dialog: Province session exists, hiding dialog');
+        return; // Don't show dialog if province is already set
+    }
     
     // Debug: Check what's happening
     error_log('Age verification dialog: Function called - Province session status: ' . (has_province_session() ? 'EXISTS' : 'NOT EXISTS'));
