@@ -64,6 +64,20 @@ add_action('wp_head', 'age_verification_dialog');
 
 // Debug: Add action to check if function is being called
 add_action('wp_footer', function() {
+    echo '<!-- Footer debug: age_verification_dialog function status -->';
+    echo '<script>console.log("Footer debug: Checking age verification status");</script>';
+    
+    if (!has_province_session()) {
+        echo '<!-- Age verification dialog should be visible -->';
+        error_log('Age verification dialog: Function called in footer - should be visible');
+    } else {
+        echo '<!-- Age verification dialog hidden - province exists -->';
+        error_log('Age verification dialog: Hidden - province exists');
+    }
+});
+
+// Debug: Add action to check if function is being called
+add_action('wp_footer', function() {
     if (!has_province_session()) {
         echo '<!-- Age verification dialog should be visible -->';
         error_log('Age verification dialog: Function called in footer');
@@ -124,12 +138,13 @@ function age_verification_dialog() {
     // PHP code to generate the HTML for the form
     // Check if the province session exists
   
-    if (has_province_session()) {
-        return; // Don't show dialog if province is already set
-    }
+    // Force show dialog for testing - comment this out later
+    // if (has_province_session()) {
+    //     return; // Don't show dialog if province is already set
+    // }
     
     // Debug: Check what's happening
-    error_log('Age verification dialog: Province session status - ' . (has_province_session() ? 'EXISTS' : 'NOT EXISTS'));
+    error_log('Age verification dialog: Function called - Province session status: ' . (has_province_session() ? 'EXISTS' : 'NOT EXISTS'));
     
     ob_start(); // Start output buffering
 
@@ -149,7 +164,8 @@ function age_verification_dialog() {
         'YT' => 'Yukon Territory'
     );
    ?>
-    <div id="custom-age-popup-wrapper">
+    <!-- DEBUG: Age verification dialog is being rendered -->
+    <div id="custom-age-popup-wrapper" style="display: block !important; z-index: 999999 !important;">
 		<div id="custom-age-popup-box">
 		
 				<center>
@@ -237,6 +253,10 @@ function age_verification_dialog() {
      ob_end_clean();
  
     echo $output_string;
+    
+    // Debug: Add a visible message
+    echo '<!-- Age verification dialog rendered successfully -->';
+    echo '<script>console.log("Age verification dialog rendered");</script>';
 
 }
 
@@ -1672,3 +1692,25 @@ add_action('init', function() {
         exit;
     }
 });
+
+// Test function to force show age verification dialog
+function force_show_age_verification() {
+    echo '<div style="position: fixed; top: 50px; left: 10px; background: #fff; border: 2px solid #ff0000; padding: 10px; z-index: 999999; font-size: 12px; max-width: 300px;">';
+    echo '<h4 style="color: #ff0000;">FORCE SHOW AGE VERIFICATION</h4>';
+    echo '<p><strong>has_province_session():</strong> ' . (has_province_session() ? 'TRUE' : 'FALSE') . '</p>';
+    echo '<p><strong>get_province_session_enhanced():</strong> ' . (get_province_session_enhanced() ?: 'NULL') . '</p>';
+    
+    // Force show the dialog
+    echo '<div id="custom-age-popup-wrapper" style="display: block !important; z-index: 999999 !important; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8);">';
+    echo '<div id="custom-age-popup-box" style="max-width: 700px; text-align: center; position: relative; border-radius: 8px; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #fff; padding: 20px;">';
+    echo '<h2>AGE VERIFICATION TEST</h2>';
+    echo '<p>This is a test dialog to verify the function is working.</p>';
+    echo '<button onclick="this.parentElement.parentElement.remove()" style="background: #0073aa; color: #fff; border: none; padding: 10px 20px; cursor: pointer;">Close Test</button>';
+    echo '</div>';
+    echo '</div>';
+    
+    echo '</div>';
+}
+
+// Add force show function to footer for testing
+add_action('wp_footer', 'force_show_age_verification');
