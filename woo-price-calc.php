@@ -26,9 +26,204 @@ function woo_price_calc_plugin_activate() {
     }
 
     add_option('woo_price_calc_plugin_do_activation_redirect', true);
+    
+    // Add .htaccess rules for CDN compatibility
+    add_htaccess_rules_for_province_cookie();
 }
 
+// Plugin deactivation hook - remove .htaccess rules
+register_deactivation_hook(__FILE__, 'woo_price_calc_plugin_deactivate');
 
+function woo_price_calc_plugin_deactivate() {
+    // Remove .htaccess rules when plugin is deactivated
+    remove_htaccess_rules_for_province_cookie();
+}
+
+// Function to add .htaccess rules for province cookie system
+function add_htaccess_rules_for_province_cookie() {
+    $htaccess_file = ABSPATH . '.htaccess';
+    
+    // Check if .htaccess exists and is writable
+    if (!file_exists($htaccess_file) || !is_writable($htaccess_file)) {
+        return false;
+    }
+    
+    // Read current .htaccess content
+    $htaccess_content = file_get_contents($htaccess_file);
+    
+    // Check if our rules already exist
+    if (strpos($htaccess_content, '# Province Cookie CDN Cache Exclusion') !== false) {
+        return true; // Rules already exist
+    }
+    
+    // Define our rules
+    $province_rules = "\n\n# Province Cookie CDN Cache Exclusion - Added by Custom Age Verifier and Tax Plugin\n";
+    $province_rules .= "# This section ensures CDN doesn't cache pages that depend on province cookies\n\n";
+    
+    // Cache control headers
+    $province_rules .= "<IfModule mod_headers.c>\n";
+    $province_rules .= "    # Set cache control headers for province-dependent pages\n";
+    $province_rules .= "    <FilesMatch \"\\.(php|html)$\">\n";
+    $province_rules .= "        Header set Cache-Control \"no-cache, no-store, must-revalidate, max-age=0, private\"\n";
+    $province_rules .= "        Header set Pragma \"no-cache\"\n";
+    $province_rules .= "        Header set Expires \"0\"\n";
+    $province_rules .= "        Header set X-Accel-Expires \"0\"\n";
+    $province_rules .= "        Header set X-Cache-Status \"BYPASS\"\n";
+    $province_rules .= "        Header set Surrogate-Control \"no-store\"\n";
+    $province_rules .= "        Header set CDN-Cache-Control \"no-cache\"\n";
+    $province_rules .= "    </FilesMatch>\n\n";
+    
+    // Force no-cache for checkout and cart pages
+    $province_rules .= "    # Force no-cache for checkout and cart pages\n";
+    $province_rules .= "    <FilesMatch \"(checkout|cart|my-account)\\.php$\">\n";
+    $province_rules .= "        Header set Cache-Control \"no-cache, no-store, must-revalidate, max-age=0, private\"\n";
+    $province_rules .= "        Header set Pragma \"no-cache\"\n";
+    $province_rules .= "        Header set Expires \"0\"\n";
+    $province_rules .= "    </FilesMatch>\n";
+    $province_rules .= "</IfModule>\n\n";
+    
+    // URL exclusion rules
+    $province_rules .= "# Exclude specific URLs from CDN cache\n";
+    $province_rules .= "<IfModule mod_rewrite.c>\n";
+    $province_rules .= "    RewriteEngine On\n\n";
+    
+    // Exclude age verification pages
+    $province_rules .= "    # Exclude age verification pages\n";
+    $province_rules .= "    RewriteCond %{HTTP_COOKIE} !province\n";
+    $province_rules .= "    RewriteRule .* - [E=NO_CACHE:1]\n\n";
+    
+    // Exclude checkout and cart pages
+    $province_rules .= "    # Exclude checkout and cart pages\n";
+    $province_rules .= "    RewriteRule ^(checkout|cart|my-account)/.*$ - [E=NO_CACHE:1]\n\n";
+    
+    // Set environment variable for no-cache
+    $province_rules .= "    # Set environment variable for no-cache\n";
+    $province_rules .= "    RewriteCond %{ENV:NO_CACHE} 1\n";
+    $province_rules .= "    RewriteRule .* - [E=NO_CACHE:1]\n";
+    $province_rules .= "</IfModule>\n\n";
+    
+    // Force no-cache when province cookie is not set
+    $province_rules .= "# Force no-cache when province cookie is not set\n";
+    $province_rules .= "<IfModule mod_headers.c>\n";
+    $province_rules .= "    # Check if province cookie exists\n";
+    $province_rules .= "    SetEnvIf Cookie \"province=\" HAS_PROVINCE\n\n";
+    
+    // Set no-cache headers when province cookie is missing
+    $province_rules .= "    # Set no-cache headers when province cookie is missing\n";
+    $province_rules .= "    Header always set Cache-Control \"no-cache, no-store, must-revalidate, max-age=0, private\" env=!HAS_PROVINCE\n";
+    $province_rules .= "    Header always set Pragma \"no-cache\" env=!HAS_PROVINCE\n";
+    $province_rules .= "    Header always set Expires \"0\" env=!HAS_PROVINCE\n";
+    $province_rules .= "</IfModule>\n\n";
+    
+    // WordPress specific rules
+    $province_rules .= "# WordPress specific rules\n";
+    $province_rules .= "<IfModule mod_rewrite.c>\n";
+    $province_rules .= "    RewriteEngine On\n";
+    $province_rules .= "    RewriteBase /\n\n";
+    
+    // Exclude admin and login pages
+    $province_rules .= "    # Exclude admin and login pages\n";
+    $province_rules .= "    RewriteRule ^wp-admin/.*$ - [E=NO_CACHE:1]\n";
+    $province_rules .= "    RewriteRule ^wp-login\\.php$ - [E=NO_CACHE:1]\n\n";
+    
+    // Exclude AJAX requests
+    $province_rules .= "    # Exclude AJAX requests\n";
+    $province_rules .= "    RewriteCond %{HTTP:X-Requested-With} XMLHttpRequest\n";
+    $province_rules .= "    RewriteRule .* - [E=NO_CACHE:1]\n";
+    $province_rules .= "</IfModule>\n\n";
+    
+    // Force no-cache for environment variable
+    $province_rules .= "# Force no-cache for environment variable\n";
+    $province_rules .= "<IfModule mod_headers.c>\n";
+    $province_rules .= "    Header always set Cache-Control \"no-cache, no-store, must-revalidate, max-age=0, private\" env=NO_CACHE\n";
+    $province_rules .= "    Header always set Pragma \"no-cache\" env=NO_CACHE\n";
+    $province_rules .= "    Header always set Expires \"0\" env=NO_CACHE\n";
+    $province_rules .= "</IfModule>\n\n";
+    
+    $province_rules .= "# End Province Cookie CDN Cache Exclusion\n";
+    
+    // Add rules to .htaccess
+    $new_content = $htaccess_content . $province_rules;
+    
+    // Write back to .htaccess
+    if (file_put_contents($htaccess_file, $new_content)) {
+        return true;
+    }
+    
+    return false;
+}
+
+// Function to remove .htaccess rules for province cookie system
+function remove_htaccess_rules_for_province_cookie() {
+    $htaccess_file = ABSPATH . '.htaccess';
+    
+    // Check if .htaccess exists and is writable
+    if (!file_exists($htaccess_file) || !is_writable($htaccess_file)) {
+        return false;
+    }
+    
+    // Read current .htaccess content
+    $htaccess_content = file_get_contents($htaccess_file);
+    
+    // Check if our rules exist
+    if (strpos($htaccess_content, '# Province Cookie CDN Cache Exclusion') === false) {
+        return true; // Rules don't exist
+    }
+    
+    // Remove our rules section
+    $start_marker = '# Province Cookie CDN Cache Exclusion - Added by Custom Age Verifier and Tax Plugin';
+    $end_marker = '# End Province Cookie CDN Cache Exclusion';
+    
+    $start_pos = strpos($htaccess_content, $start_marker);
+    $end_pos = strpos($htaccess_content, $end_marker);
+    
+    if ($start_pos !== false && $end_pos !== false) {
+        $end_pos = $end_pos + strlen($end_marker) + 2; // Include the marker and newlines
+        
+        // Remove the rules section
+        $new_content = substr($htaccess_content, 0, $start_pos) . substr($htaccess_content, $end_pos);
+        
+        // Write back to .htaccess
+        if (file_put_contents($htaccess_file, $new_content)) {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+// Add admin notice for .htaccess status
+add_action('admin_notices', 'province_cookie_htaccess_notice');
+
+function province_cookie_htaccess_notice() {
+    if (isset($_GET['page']) && $_GET['page'] === 'wc-settings' && isset($_GET['tab']) && $_GET['tab'] === 'custom_settings') {
+        $htaccess_file = ABSPATH . '.htaccess';
+        
+        if (file_exists($htaccess_file) && is_writable($htaccess_file)) {
+            if (strpos(file_get_contents($htaccess_file), '# Province Cookie CDN Cache Exclusion') !== false) {
+                echo '<div class="notice notice-success is-dismissible"><p><strong>Province Cookie Plugin:</strong> .htaccess rules have been successfully added for CDN compatibility.</p></div>';
+            } else {
+                echo '<div class="notice notice-warning is-dismissible"><p><strong>Province Cookie Plugin:</strong> .htaccess rules need to be added. <a href="' . admin_url('admin-post.php?action=add_province_htaccess_rules') . '">Click here to add them manually</a>.</p></div>';
+            }
+        } else {
+            echo '<div class="notice notice-error is-dismissible"><p><strong>Province Cookie Plugin:</strong> Cannot access .htaccess file. Please ensure the file exists and is writable for optimal CDN compatibility.</p></div>';
+        }
+    }
+}
+
+// Add manual action to add .htaccess rules
+add_action('admin_post_add_province_htaccess_rules', 'manual_add_province_htaccess_rules');
+
+function manual_add_province_htaccess_rules() {
+    if (current_user_can('manage_options')) {
+        if (add_htaccess_rules_for_province_cookie()) {
+            wp_redirect(admin_url('admin.php?page=wc-settings&tab=custom_settings&htaccess_added=1'));
+        } else {
+            wp_redirect(admin_url('admin.php?page=wc-settings&tab=custom_settings&htaccess_error=1'));
+        }
+        exit;
+    }
+}
 
 
 // #1: Age verifier
@@ -36,6 +231,12 @@ function enqueue_age_verifier_script() {
     wp_enqueue_style('age-verifier', plugin_dir_url(__FILE__) . '/styles.css', array(), '1.0');
 
     wp_enqueue_script('age-verifier', plugin_dir_url(__FILE__) . 'js/age-verifier.js', array('jquery'), '1.0.0', true);
+
+    // Localize script with AJAX data
+    wp_localize_script('age-verifier', 'ajax_object', array(
+        'ajax_url' => admin_url('admin-ajax.php'),
+        'nonce' => wp_create_nonce('province_session_nonce')
+    ));
 
       // Check if the 'woocommerce-google-address.php' plugin is active
       //if (is_plugin_active('woocommerce-google-address/woocommerce-google-address.php')) {
@@ -90,7 +291,7 @@ function is_admin_simulating_customer_role() {
 
 
 function d_add_province_class($classes) {
-    if (!isset($_COOKIE['province'])) {
+    if (!has_province_session()) {
         $classes[] = 'no-province';
     }
     return $classes;
@@ -99,9 +300,9 @@ add_filter('body_class', 'd_add_province_class');
 
 function age_verification_dialog() {
     // PHP code to generate the HTML for the form
-    // Check if the cookie exists
+    // Check if the province session exists
   
-    if (isset($_COOKIE['province'])) {
+    if (has_province_session()) {
         return;
     }
     //var_dump($_COOKIE['province']);
@@ -372,7 +573,7 @@ function custom_checkout_css() {
 
 function disable_select2_for_state_field($args, $key, $value) {
   
-    if (in_array($key, array('billing_state', 'shipping_state')) && get_province_cookie_enhanced() && !is_admin_simulating_customer_role()) {
+    if (in_array($key, array('billing_state', 'shipping_state')) && get_province_session_enhanced() && !is_admin_simulating_customer_role()) {
       
 
         // Set the field as read-only
@@ -418,32 +619,13 @@ function handle_d_age_verification_form() {
         // Sanitize the province value
         $province = sanitize_text_field($_POST['province']);
         
-        // Use enhanced cookie setting for CDN compatibility
-        set_province_cookie_enhanced($province);
+        // Use WooCommerce session for better CDN compatibility
+        set_province_session_enhanced($province);
         
-        // Also store in session as backup
-        if (!session_id()) {
-            session_start();
-        }
-        $_SESSION['province'] = $province;
-        
-        // Store in user meta if user is logged in
-        if (is_user_logged_in()) {
-            update_user_meta(get_current_user_id(), 'selected_province', $province);
-        }
+        // Also set cookie as fallback for non-JavaScript users
+        setcookie('province', $province, time() + (86400 * 60), "/");
+        $_COOKIE['province'] = $province;
     }
-    
-    // Enhanced cache clearing for CDN
-    if (function_exists('rocket_clean_domain')) {
-        rocket_clean_domain();
-    }
-    
-    if (function_exists('flying_press_clear_cache')) {
-        flying_press_clear_cache();
-    }
-    
-    // Clear all caches
-    wp_cache_flush();
     
     // Redirect to the current page
     wp_redirect($_SERVER['HTTP_REFERER']);
@@ -466,8 +648,8 @@ function change_default_checkout_state($value, $input) {
     //if(!is_admin_simulating_customer_role()){
       
         if ($input === 'billing_state' || $input === 'shipping_state') {
-            // Use enhanced cookie function for CDN compatibility
-            $province = get_province_cookie_enhanced();
+            // Use WooCommerce session for better CDN compatibility
+            $province = get_province_session_enhanced();
             if ($province) { 
                 return $province;
             }
@@ -480,8 +662,8 @@ function change_default_checkout_state($value, $input) {
 add_action('woocommerce_checkout_process', 'validate_billing_shipping_state');
 
 function validate_billing_shipping_state() {
-    // Use enhanced cookie function for CDN compatibility
-    $province = get_province_cookie_enhanced();
+    // Use WooCommerce session for better CDN compatibility
+    $province = get_province_session_enhanced();
     if ($province) {
         
         if (empty($_POST['billing_state'])) {
@@ -524,6 +706,11 @@ function store_guest_billing_state($post_data) {
     parse_str($post_data, $checkout_data);
     if (isset($checkout_data['billing_state'])) {
         $province = sanitize_text_field($checkout_data['billing_state']);
+        
+        // Store in WooCommerce session for better CDN compatibility
+        set_province_session_enhanced($province);
+        
+        // Also set cookie as fallback
         setcookie('province', $province, time() + (86400 * 60), "/");
         $_COOKIE['province'] = $province; // Manually update the $_COOKIE superglobal
     }
@@ -575,8 +762,8 @@ function check_taxable_categories($product) {
 function get_curent_tax_province($product){
   
 
-    // Use enhanced cookie function for CDN compatibility
-    $customer_zone = get_province_cookie_enhanced();
+    // Use WooCommerce session for better CDN compatibility
+    $customer_zone = get_province_session_enhanced();
     
     $tax = 0;
     if (check_taxable_categories($product) && $customer_zone) { 
@@ -1064,8 +1251,8 @@ function hide_selected_products($query) {
     
 
             // Get the selected products from the settings
-            $selected_products = get_option('wc_province_hide_product_' . $province_code);
-            $selected_categories = get_option('wc_province_product_hide_category_' . $province_code);
+            $selected_products = get_option('wc_province_hide_product_' . $province_code, array());
+            $selected_categories = get_option('wc_province_product_hide_category_' . $province_code, array());
 
            // var_dump($selected_products);
 
@@ -1387,8 +1574,8 @@ add_filter('flying_press_exclude_urls', function($exclude_urls) {
     $exclude_urls[] = '/checkout/';
     $exclude_urls[] = '/my-account/';
     
-    // Exclude pages when province cookie is not set
-    if (!get_province_cookie_enhanced()) {
+    // Exclude pages when province session is not set
+    if (!has_province_session()) {
         $exclude_urls[] = '.*';
     }
     
@@ -1405,8 +1592,8 @@ add_filter('flying_press_exclude_cookies', function($exclude_cookies) {
 
 // Exclude user-specific content from cache
 add_filter('flying_press_exclude_user_agents', function($exclude_user_agents) {
-    // Exclude when province cookie is not set
-    if (!get_province_cookie_enhanced()) {
+    // Exclude when province session is not set
+    if (!has_province_session()) {
         $exclude_user_agents[] = '.*';
     }
     return $exclude_user_agents;
@@ -1437,14 +1624,14 @@ function force_cache_refresh_on_province_change() {
 add_action('wp_footer', 'add_province_cache_refresh_script');
 
 function add_province_cache_refresh_script() {
-    if (get_province_cookie_enhanced()) {
+    if (has_province_session()) {
         ?>
         <script>
         jQuery(document).ready(function($) {
-            // Force cache refresh when province cookie changes
-            var currentProvince = '<?php echo get_province_cookie_enhanced(); ?>';
+            // Force cache refresh when province session changes
+            var currentProvince = '<?php echo get_province_session_enhanced(); ?>';
             
-            // Check if province changed
+            // Check if province changed in session vs cookie
             if (currentProvince && currentProvince !== getCookie('province')) {
                 // Province changed, clear cache
                 $.ajax({
@@ -1468,5 +1655,139 @@ function add_province_cache_refresh_script() {
         });
         </script>
         <?php
+    }
+}
+
+// Enhanced WooCommerce session handling for province storage
+function set_province_session_enhanced($province) {
+    // Store province in WooCommerce session
+    if (function_exists('WC') && WC()->session) {
+        WC()->session->set('selected_province', $province);
+        
+        // Also store in user meta if user is logged in
+        if (is_user_logged_in()) {
+            update_user_meta(get_current_user_id(), 'selected_province', $province);
+        }
+        
+        // Store in transient for immediate access
+        set_transient('province_' . WC()->session->get_customer_id(), $province, 86400 * 60);
+        
+        // Clear caches when province changes
+        if (function_exists('wp_cache_flush')) {
+            wp_cache_flush();
+        }
+        
+        if (function_exists('flying_press_clear_cache')) {
+            flying_press_clear_cache();
+        }
+        
+        if (function_exists('rocket_clean_domain')) {
+            rocket_clean_domain();
+        }
+        
+        return true;
+    }
+    
+    return false;
+}
+
+// Enhanced province session retrieval
+function get_province_session_enhanced() {
+    $province = null;
+    
+    // 1. Check WooCommerce session first
+    if (function_exists('WC') && WC()->session) {
+        $province = WC()->session->get('selected_province');
+    }
+    
+    // 2. Check transient if session is empty
+    if (!$province && function_exists('WC') && WC()->session) {
+        $customer_id = WC()->session->get_customer_id();
+        if ($customer_id) {
+            $province = get_transient('province_' . $customer_id);
+        }
+    }
+    
+    // 3. Check user meta if user is logged in
+    if (!$province && is_user_logged_in()) {
+        $province = get_user_meta(get_current_user_id(), 'selected_province', true);
+        
+        // Update session if found in user meta
+        if ($province && function_exists('WC') && WC()->session) {
+            WC()->session->set('selected_province', $province);
+        }
+    }
+    
+    // 4. Fallback to cookie if everything else fails
+    if (!$province && isset($_COOKIE['province'])) {
+        $province = sanitize_text_field($_COOKIE['province']);
+        
+        // Update session with cookie value
+        if ($province && function_exists('WC') && WC()->session) {
+            WC()->session->set('selected_province', $province);
+        }
+    }
+    
+    return $province;
+}
+
+// Check if province is set using session
+function has_province_session() {
+    return get_province_session_enhanced() !== null;
+}
+
+// Ensure WooCommerce session is initialized early
+add_action('init', 'ensure_woocommerce_session', 1);
+
+function ensure_woocommerce_session() {
+    if (!is_admin() && function_exists('WC') && !WC()->session) {
+        WC()->session = new WC_Session_Handler();
+        WC()->session->init();
+    }
+}
+
+// Clean up province session on logout
+add_action('wp_logout', 'cleanup_province_session');
+
+function cleanup_province_session() {
+    if (function_exists('WC') && WC()->session) {
+        WC()->session->__unset('selected_province');
+    }
+    
+    // Also clear transient
+    if (function_exists('WC') && WC()->session) {
+        $customer_id = WC()->session->get_customer_id();
+        if ($customer_id) {
+            delete_transient('province_' . $customer_id);
+        }
+    }
+    
+    // Clear cookie
+    if (isset($_COOKIE['province'])) {
+        setcookie('province', '', time() - 3600, '/');
+        unset($_COOKIE['province']);
+    }
+}
+
+// Add AJAX endpoint for province updates
+add_action('wp_ajax_update_province_session', 'ajax_update_province_session');
+add_action('wp_ajax_nopriv_update_province_session', 'ajax_update_province_session');
+
+function ajax_update_province_session() {
+    // Verify nonce
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'province_session_nonce')) {
+        wp_send_json_error('Invalid nonce');
+        return;
+    }
+    
+    if (isset($_POST['province'])) {
+        $province = sanitize_text_field($_POST['province']);
+        if (set_province_session_enhanced($province)) {
+            wp_send_json_success('Province updated successfully');
+        } else {
+            wp_send_json_error('Failed to update province');
+        }
+    } else {
+        wp_send_json_error('No province provided');
     }
 }
