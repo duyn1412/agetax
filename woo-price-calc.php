@@ -1599,7 +1599,13 @@ function get_province_session_enhanced() {
         }
     }
     
+    // Ensure we return the correct type - if no province found, return null explicitly
+    if (empty($province)) {
+        $province = null;
+    }
+    
     error_log('Final province result: ' . ($province ?: 'NULL'));
+    error_log('Final province type: ' . gettype($province));
     error_log('=== get_province_session_enhanced() END - RETURNING: ' . ($province ?: 'NULL') . ' ===');
     return $province;
 }
