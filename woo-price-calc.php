@@ -62,6 +62,17 @@ add_action('wp_enqueue_scripts', 'enqueue_age_verifier_script');
 // add popup
 add_action('wp_head', 'age_verification_dialog');
 
+// Debug: Add action to check if function is being called
+add_action('wp_footer', function() {
+    if (!has_province_session()) {
+        echo '<!-- Age verification dialog should be visible -->';
+        error_log('Age verification dialog: Function called in footer');
+    } else {
+        echo '<!-- Age verification dialog hidden - province exists -->';
+        error_log('Age verification dialog: Hidden - province exists');
+    }
+});
+
 
 function get_logo_url() {
     $custom_logo_id = get_theme_mod('custom_logo');
@@ -114,9 +125,12 @@ function age_verification_dialog() {
     // Check if the province session exists
   
     if (has_province_session()) {
-        return;
+        return; // Don't show dialog if province is already set
     }
-    //var_dump($_COOKIE['province']);
+    
+    // Debug: Check what's happening
+    error_log('Age verification dialog: Province session status - ' . (has_province_session() ? 'EXISTS' : 'NOT EXISTS'));
+    
     ob_start(); // Start output buffering
 
     $province_group2 = array(
@@ -1551,9 +1565,19 @@ function has_province_session() {
 add_action('init', 'ensure_woocommerce_session', 1);
 
 function ensure_woocommerce_session() {
-    if (!is_admin() && function_exists('WC') && !WC()->session) {
-        WC()->session = new WC_Session_Handler();
-        WC()->session->init();
+    if (!is_admin() && function_exists('WC')) {
+        // Check if WooCommerce is loaded
+        if (!WC()->session) {
+            WC()->session = new WC_Session_Handler();
+            WC()->session->init();
+        }
+        
+        // Debug: Log session status
+        error_log('WooCommerce session status: ' . (WC()->session ? 'INITIALIZED' : 'NOT INITIALIZED'));
+        if (WC()->session) {
+            error_log('Session customer ID: ' . WC()->session->get_customer_id());
+            error_log('Session province: ' . WC()->session->get('selected_province'));
+        }
     }
 }
 
@@ -1602,3 +1626,49 @@ function ajax_update_province_session() {
         wp_send_json_error('No province provided');
     }
 }
+
+// Test function for debugging province session
+function test_province_session_debug() {
+    if (current_user_can('manage_options')) { // Only show to admins
+        echo '<div style="position: fixed; top: 10px; right: 10px; background: #fff; border: 1px solid #ccc; padding: 10px; z-index: 999999; font-size: 12px;">';
+        echo '<h4>Province Session Debug</h4>';
+        
+        // Test session functions
+        echo '<p><strong>has_province_session():</strong> ' . (has_province_session() ? 'TRUE' : 'FALSE') . '</p>';
+        
+        $province = get_province_session_enhanced();
+        echo '<p><strong>get_province_session_enhanced():</strong> ' . ($province ? $province : 'NULL') . '</p>';
+        
+        // Test WooCommerce session
+        if (function_exists('WC') && WC()->session) {
+            echo '<p><strong>WC Session:</strong> INITIALIZED</p>';
+            echo '<p><strong>Customer ID:</strong> ' . WC()->session->get_customer_id() . '</p>';
+            echo '<p><strong>Session Province:</strong> ' . WC()->session->get('selected_province') . '</p>';
+        } else {
+            echo '<p><strong>WC Session:</strong> NOT INITIALIZED</p>';
+        }
+        
+        // Test cookie
+        echo '<p><strong>Cookie Province:</strong> ' . (isset($_COOKIE['province']) ? $_COOKIE['province'] : 'NOT SET') . '</p>';
+        
+        // Test button to set province
+        echo '<form method="post" style="margin-top: 10px;">';
+        echo '<input type="hidden" name="test_province" value="ON">';
+        echo '<button type="submit" style="background: #0073aa; color: #fff; border: none; padding: 5px 10px; cursor: pointer;">Test Set Province ON</button>';
+        echo '</form>';
+        
+        echo '</div>';
+    }
+}
+
+// Add test function to footer for admins
+add_action('wp_footer', 'test_province_session_debug');
+
+// Handle test province setting
+add_action('init', function() {
+    if (isset($_POST['test_province']) && current_user_can('manage_options')) {
+        set_province_session_enhanced('ON');
+        wp_redirect(remove_query_arg('test_province'));
+        exit;
+    }
+});
