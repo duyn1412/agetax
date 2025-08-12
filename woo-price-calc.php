@@ -1610,9 +1610,15 @@ function has_province_session() {
     
     $province = get_province_session_enhanced();
     error_log('Province from get_province_session_enhanced(): ' . ($province ?: 'NULL'));
+    error_log('Province type: ' . gettype($province));
+    error_log('Province === null: ' . ($province === null ? 'TRUE' : 'FALSE'));
+    error_log('Province !== null: ' . ($province !== null ? 'TRUE' : 'FALSE'));
+    error_log('Province === "": ' . ($province === '' ? 'TRUE' : 'FALSE'));
+    error_log('Province !== "": ' . ($province !== '' ? 'TRUE' : 'FALSE'));
     
     $result = $province !== null && $province !== '';
     error_log('Initial result calculation: ' . ($result ? 'TRUE' : 'FALSE'));
+    error_log('Logic breakdown: (' . ($province !== null ? 'TRUE' : 'FALSE') . ' && ' . ($province !== '' ? 'TRUE' : 'FALSE') . ') = ' . ($result ? 'TRUE' : 'FALSE'));
     
     // Force return FALSE if province is NULL to fix the logic issue
     if ($province === null) {
@@ -1914,5 +1920,69 @@ add_action('init', function() {
             wp_redirect(remove_query_arg('debug_clear_province'));
             exit;
         }
+    }
+});
+
+// Test basic PHP logic
+function test_php_logic() {
+    error_log('=== TESTING BASIC PHP LOGIC ===');
+    
+    $test_null = null;
+    $test_empty = '';
+    $test_string = 'QC';
+    
+    error_log('Test NULL:');
+    error_log('  $test_null = ' . ($test_null ?: 'NULL'));
+    error_log('  $test_null !== null: ' . ($test_null !== null ? 'TRUE' : 'FALSE'));
+    error_log('  $test_null !== "": ' . ($test_null !== '' ? 'TRUE' : 'FALSE'));
+    error_log('  ($test_null !== null && $test_null !== ""): ' . (($test_null !== null && $test_null !== '') ? 'TRUE' : 'FALSE'));
+    
+    error_log('Test EMPTY:');
+    error_log('  $test_empty = "' . $test_empty . '"');
+    error_log('  $test_empty !== null: ' . ($test_empty !== null ? 'TRUE' : 'FALSE'));
+    error_log('  $test_empty !== "": ' . ($test_empty !== '' ? 'TRUE' : 'FALSE'));
+    error_log('  ($test_empty !== null && $test_empty !== ""): ' . (($test_empty !== null && $test_empty !== '') ? 'TRUE' : 'FALSE'));
+    
+    error_log('Test STRING:');
+    error_log('  $test_string = "' . $test_string . '"');
+    error_log('  $test_string !== null: ' . ($test_string !== null ? 'TRUE' : 'FALSE'));
+    error_log('  $test_string !== "": ' . ($test_string !== '' ? 'TRUE' : 'FALSE'));
+    error_log('  ($test_string !== null && $test_string !== ""): ' . (($test_string !== null && $test_string !== '') ? 'TRUE' : 'FALSE'));
+    
+    error_log('=== END PHP LOGIC TEST ===');
+}
+
+// Add PHP logic test to comprehensive debug
+add_action('wp_footer', function() {
+    if (current_user_can('manage_options')) {
+        echo '<div style="position: fixed; top: 10px; right: 10px; background: #000; color: #ffff00; border: 2px solid #ffff00; padding: 15px; z-index: 999999; font-size: 12px; max-width: 300px; font-family: monospace;">';
+        echo '<h4 style="margin: 0 0 10px 0; color: #ffff00;">🧪 PHP LOGIC TEST</h4>';
+        echo '<button onclick="testPhpLogic()" style="background: #ffff00; color: #000; border: none; padding: 5px 10px; cursor: pointer; border-radius: 3px; width: 100%;">Test PHP Logic</button>';
+        echo '<div id="php-logic-result" style="margin-top: 10px; font-size: 10px;"></div>';
+        echo '</div>';
+        
+        echo '<script>
+        function testPhpLogic() {
+            var xhr = new XMLHttpRequest();
+            xhr.open("POST", "' . admin_url('admin-ajax.php') . '", true);
+            xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4 && xhr.status === 200) {
+                    document.getElementById("php-logic-result").innerHTML = "Check error logs for results";
+                }
+            };
+            xhr.send("action=test_php_logic&nonce=' . wp_create_nonce('test_php_logic') . '");
+        }
+        </script>';
+    }
+});
+
+// AJAX handler for PHP logic test
+add_action('wp_ajax_test_php_logic', function() {
+    if (wp_verify_nonce($_POST['nonce'], 'test_php_logic')) {
+        test_php_logic();
+        wp_send_json_success('PHP logic test completed - check error logs');
+    } else {
+        wp_send_json_error('Invalid nonce');
     }
 });
