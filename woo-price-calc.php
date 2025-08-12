@@ -1612,6 +1612,12 @@ function has_province_session() {
     // Debug logging
     error_log('has_province_session() called - Province: ' . ($province ?: 'NULL') . ', Result: ' . ($result ? 'TRUE' : 'FALSE'));
     
+    // Force return FALSE if province is NULL to fix the logic issue
+    if ($province === null) {
+        error_log('has_province_session() forcing FALSE because province is NULL');
+        return false;
+    }
+    
     return $result;
 }
 
@@ -1624,6 +1630,7 @@ function ensure_woocommerce_session() {
         if (!WC()->session) {
             WC()->session = new WC_Session_Handler();
             WC()->session->init();
+            error_log('WooCommerce session initialized manually');
         }
         
         // Debug: Log session status
@@ -1631,7 +1638,16 @@ function ensure_woocommerce_session() {
         if (WC()->session) {
             error_log('Session customer ID: ' . WC()->session->get_customer_id());
             error_log('Session province: ' . WC()->session->get('selected_province'));
+            
+            // Test setting and getting a value
+            WC()->session->set('test_value', 'test');
+            $test_value = WC()->session->get('test_value');
+            error_log('Session test - Set: test, Get: ' . $test_value);
+        } else {
+            error_log('ERROR: WooCommerce session could not be initialized');
         }
+    } else {
+        error_log('WooCommerce not available or admin page');
     }
 }
 
@@ -1748,3 +1764,51 @@ function force_show_age_verification() {
 
 // Add force show function to footer for testing
 add_action('wp_footer', 'force_show_age_verification');
+
+// Test function to manually test WooCommerce session
+function test_woocommerce_session() {
+    if (current_user_can('manage_options')) {
+        echo '<div style="position: fixed; bottom: 10px; left: 10px; background: #fff; border: 2px solid #00ff00; padding: 10px; z-index: 999999; font-size: 12px; max-width: 300px;">';
+        echo '<h4 style="color: #00ff00;">WC Session Test</h4>';
+        
+        if (function_exists('WC') && WC()->session) {
+            echo '<p><strong>WC Session:</strong> AVAILABLE</p>';
+            echo '<p><strong>Customer ID:</strong> ' . WC()->session->get_customer_id() . '</p>';
+            
+            // Test set and get
+            WC()->session->set('test_province', 'TEST_ON');
+            $test_value = WC()->session->get('test_province');
+            echo '<p><strong>Test Set/Get:</strong> ' . $test_value . '</p>';
+            
+            // Test province
+            $current_province = WC()->session->get('selected_province');
+            echo '<p><strong>Current Province:</strong> ' . ($current_province ?: 'NULL') . '</p>';
+            
+            // Test button to set province
+            echo '<form method="post" style="margin-top: 10px;">';
+            echo '<input type="hidden" name="test_wc_province" value="ON">';
+            echo '<button type="submit" style="background: #00ff00; color: #000; border: none; padding: 5px 10px; cursor: pointer; border-radius: 3px;">Test Set WC Province ON</button>';
+            echo '</form>';
+            
+        } else {
+            echo '<p><strong>WC Session:</strong> NOT AVAILABLE</p>';
+        }
+        
+        echo '</div>';
+    }
+}
+
+// Add test function to footer
+add_action('wp_footer', 'test_woocommerce_session');
+
+// Handle test WC province setting
+add_action('init', function() {
+    if (isset($_POST['test_wc_province']) && current_user_can('manage_options')) {
+        if (function_exists('WC') && WC()->session) {
+            WC()->session->set('selected_province', 'ON');
+            error_log('Test: Manually set WC session province to ON');
+        }
+        wp_redirect(remove_query_arg('test_wc_province'));
+        exit;
+    }
+});
