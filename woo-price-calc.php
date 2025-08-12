@@ -1813,3 +1813,96 @@ add_action('init', function() {
         exit;
     }
 });
+
+// Comprehensive debug panel for session issues
+function comprehensive_session_debug() {
+    if (current_user_can('manage_options')) {
+        echo '<div style="position: fixed; top: 10px; left: 10px; background: #000; color: #00ff00; border: 2px solid #00ff00; padding: 15px; z-index: 999999; font-size: 12px; max-width: 400px; font-family: monospace;">';
+        echo '<h4 style="margin: 0 0 10px 0; color: #00ff00;">🔍 COMPREHENSIVE SESSION DEBUG</h4>';
+        
+        // Check WooCommerce availability
+        echo '<p><strong>WC Available:</strong> ' . (function_exists('WC') ? 'YES' : 'NO') . '</p>';
+        
+        if (function_exists('WC')) {
+            echo '<p><strong>WC Session:</strong> ' . (WC()->session ? 'YES' : 'NO') . '</p>';
+            
+            if (WC()->session) {
+                echo '<p><strong>Customer ID:</strong> ' . WC()->session->get_customer_id() . '</p>';
+                echo '<p><strong>Session Province:</strong> ' . (WC()->session->get('selected_province') ?: 'NULL') . '</p>';
+                
+                // Test session set/get
+                WC()->session->set('debug_test', 'DEBUG_VALUE');
+                $test_value = WC()->session->get('debug_test');
+                echo '<p><strong>Session Test:</strong> ' . $test_value . '</p>';
+                
+                // Check all session data
+                $session_data = WC()->session->get_session_data();
+                echo '<p><strong>Session Data Keys:</strong> ' . implode(', ', array_keys($session_data)) . '</p>';
+            }
+        }
+        
+        // Check user status
+        echo '<p><strong>User Logged In:</strong> ' . (is_user_logged_in() ? 'YES' : 'NO') . '</p>';
+        if (is_user_logged_in()) {
+            echo '<p><strong>User ID:</strong> ' . get_current_user_id() . '</p>';
+            echo '<p><strong>User Meta Province:</strong> ' . get_user_meta(get_current_user_id(), 'selected_province', true) . '</p>';
+        }
+        
+        // Check cookies
+        echo '<p><strong>Province Cookie:</strong> ' . (isset($_COOKIE['province']) ? $_COOKIE['province'] : 'NOT SET') . '</p>';
+        
+        // Check transients
+        if (function_exists('WC') && WC()->session) {
+            $customer_id = WC()->session->get_customer_id();
+            if ($customer_id) {
+                $transient_province = get_transient('province_' . $customer_id);
+                echo '<p><strong>Transient Province:</strong> ' . ($transient_province ?: 'NULL') . '</p>';
+            }
+        }
+        
+        // Test our functions
+        echo '<hr style="border-color: #00ff00;">';
+        echo '<p><strong>get_province_session_enhanced():</strong> ' . get_province_session_enhanced() . '</p>';
+        echo '<p><strong>has_province_session():</strong> ' . (has_province_session() ? 'TRUE' : 'FALSE') . '</p>';
+        
+        // Manual test buttons
+        echo '<hr style="border-color: #00ff00;">';
+        echo '<form method="post" style="margin-top: 10px;">';
+        echo '<input type="hidden" name="debug_set_province" value="TEST_QC">';
+        echo '<button type="submit" style="background: #00ff00; color: #000; border: none; padding: 5px 10px; cursor: pointer; border-radius: 3px; margin-right: 5px;">Set Province TEST_QC</button>';
+        echo '</form>';
+        
+        echo '<form method="post" style="margin-top: 5px;">';
+        echo '<input type="hidden" name="debug_clear_province" value="1">';
+        echo '<button type="submit" style="background: #ff0000; color: #fff; border: none; padding: 5px 10px; cursor: pointer; border-radius: 3px;">Clear Province</button>';
+        echo '</form>';
+        
+        echo '</div>';
+    }
+}
+
+// Add comprehensive debug to footer
+add_action('wp_footer', 'comprehensive_session_debug');
+
+// Handle debug actions
+add_action('init', function() {
+    if (current_user_can('manage_options')) {
+        if (isset($_POST['debug_set_province'])) {
+            $province = sanitize_text_field($_POST['debug_set_province']);
+            if (set_province_session_enhanced($province)) {
+                error_log('Debug: Manually set province to ' . $province);
+            }
+            wp_redirect(remove_query_arg('debug_set_province'));
+            exit;
+        }
+        
+        if (isset($_POST['debug_clear_province'])) {
+            if (function_exists('WC') && WC()->session) {
+                WC()->session->__unset('selected_province');
+                error_log('Debug: Manually cleared province from session');
+            }
+            wp_redirect(remove_query_arg('debug_clear_province'));
+            exit;
+        }
+    }
+});
