@@ -1505,17 +1505,30 @@ function add_province_cache_refresh_script() {
 
 // Enhanced WooCommerce session handling for province storage
 function set_province_session_enhanced($province) {
+    error_log('set_province_session_enhanced() called with province: ' . $province);
+    
     // Store province in WooCommerce session
     if (function_exists('WC') && WC()->session) {
         WC()->session->set('selected_province', $province);
+        error_log('Set WC session province: ' . $province);
         
         // Also store in user meta if user is logged in
         if (is_user_logged_in()) {
             update_user_meta(get_current_user_id(), 'selected_province', $province);
+            error_log('Updated user meta province: ' . $province);
         }
         
         // Store in transient for immediate access
-        set_transient('province_' . WC()->session->get_customer_id(), $province, 86400 * 60);
+        $customer_id = WC()->session->get_customer_id();
+        if ($customer_id) {
+            set_transient('province_' . $customer_id, $province, 86400 * 60);
+            error_log('Set transient province for customer ' . $customer_id . ': ' . $province);
+        }
+        
+        // Also set cookie as backup
+        setcookie('province', $province, time() + (86400 * 60), "/");
+        $_COOKIE['province'] = $province;
+        error_log('Set cookie province: ' . $province);
         
         // Clear caches when province changes
         if (function_exists('wp_cache_flush')) {
@@ -1530,7 +1543,10 @@ function set_province_session_enhanced($province) {
             rocket_clean_domain();
         }
         
+        error_log('Province session set successfully');
         return true;
+    } else {
+        error_log('WC session not available, cannot set province');
     }
     
     return false;
@@ -1540,9 +1556,15 @@ function set_province_session_enhanced($province) {
 function get_province_session_enhanced() {
     $province = null;
     
+    // Debug: Log the function call
+    error_log('get_province_session_enhanced() called');
+    
     // 1. Check WooCommerce session first
     if (function_exists('WC') && WC()->session) {
         $province = WC()->session->get('selected_province');
+        error_log('WC Session check - Province: ' . ($province ?: 'NULL'));
+    } else {
+        error_log('WC Session not available');
     }
     
     // 2. Check transient if session is empty
@@ -1550,35 +1572,47 @@ function get_province_session_enhanced() {
         $customer_id = WC()->session->get_customer_id();
         if ($customer_id) {
             $province = get_transient('province_' . $customer_id);
+            error_log('Transient check - Customer ID: ' . $customer_id . ', Province: ' . ($province ?: 'NULL'));
         }
     }
     
     // 3. Check user meta if user is logged in
     if (!$province && is_user_logged_in()) {
         $province = get_user_meta(get_current_user_id(), 'selected_province', true);
+        error_log('User meta check - Province: ' . ($province ?: 'NULL'));
         
         // Update session if found in user meta
         if ($province && function_exists('WC') && WC()->session) {
             WC()->session->set('selected_province', $province);
+            error_log('Updated WC session with user meta province: ' . $province);
         }
     }
     
     // 4. Fallback to cookie if everything else fails
     if (!$province && isset($_COOKIE['province'])) {
         $province = sanitize_text_field($_COOKIE['province']);
+        error_log('Cookie fallback - Province: ' . $province);
         
         // Update session with cookie value
         if ($province && function_exists('WC') && WC()->session) {
             WC()->session->set('selected_province', $province);
+            error_log('Updated WC session with cookie province: ' . $province);
         }
     }
     
+    error_log('Final province result: ' . ($province ?: 'NULL'));
     return $province;
 }
 
 // Check if province is set using session
 function has_province_session() {
-    return get_province_session_enhanced() !== null;
+    $province = get_province_session_enhanced();
+    $result = $province !== null && $province !== '';
+    
+    // Debug logging
+    error_log('has_province_session() called - Province: ' . ($province ?: 'NULL') . ', Result: ' . ($result ? 'TRUE' : 'FALSE'));
+    
+    return $result;
 }
 
 // Ensure WooCommerce session is initialized early
