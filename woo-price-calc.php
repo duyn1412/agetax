@@ -1503,15 +1503,51 @@ function add_province_cache_refresh_script() {
     }
 }
 
-// Simple cookie-based province storage
+// Enhanced province cookie function with Bunny CDN support
 function set_province_cookie($province) {
-    // Set cookie with province
-    setcookie('province', $province, time() + (86400 * 60), "/");
+    // Set cookie with enhanced parameters
+    $cookie_params = array(
+        'expires' => time() + (86400 * 60), // 60 days
+        'path' => '/',
+        'domain' => '',
+        'secure' => is_ssl(),
+        'httponly' => false,
+        'samesite' => 'Lax'
+    );
+    
+    // Set the cookie
+    setcookie('province', $province, $cookie_params);
     $_COOKIE['province'] = $province;
     
-    // Clear FlyingPress cache if available
+    // Force cache clearing for FlyingPress
     if (function_exists('flying_press_clear_cache')) {
         flying_press_clear_cache();
+        error_log('FlyingPress cache cleared for province: ' . $province);
+    }
+    
+    // Force WordPress cache clearing
+    if (function_exists('wp_cache_flush')) {
+        wp_cache_flush();
+        error_log('WordPress cache flushed for province: ' . $province);
+    }
+    
+    // Force WP Rocket cache clearing if available
+    if (function_exists('rocket_clean_domain')) {
+        rocket_clean_domain();
+        error_log('WP Rocket cache cleared for province: ' . $province);
+    }
+    
+    // Set cache control headers immediately
+    if (!headers_sent()) {
+        header('Cache-Control: no-cache, no-store, must-revalidate, max-age=0, private');
+        header('Pragma: no-cache');
+        header('Expires: 0');
+        header('X-Accel-Expires: 0');
+        header('X-Cache-Status: BYPASS');
+        header('Surrogate-Control: no-store');
+        header('CDN-Cache-Control: no-cache, no-store, must-revalidate, max-age=0');
+        header('X-Bunny-Cache: BYPASS');
+        header('X-Bunny-Cache-Control: no-cache, no-store, must-revalidate, max-age=0');
     }
     
     return true;
@@ -1879,3 +1915,53 @@ add_action('wp_ajax_test_php_logic', function() {
         wp_send_json_error('Invalid nonce');
     }
 });
+
+// Bunny CDN + FlyingPress cache control for province cookies
+add_action('send_headers', function() {
+    // Check if user has province cookie
+    if (isset($_COOKIE['province'])) {
+        // Set aggressive cache control headers for Bunny CDN
+        header('Cache-Control: no-cache, no-store, must-revalidate, max-age=0, private');
+        header('Pragma: no-cache');
+        header('Expires: 0');
+        
+        // Bunny CDN specific headers
+        header('X-Accel-Expires: 0');
+        header('X-Cache-Status: BYPASS');
+        header('Surrogate-Control: no-store');
+        header('CDN-Cache-Control: no-cache, no-store, must-revalidate, max-age=0');
+        
+        // Additional headers for Bunny CDN
+        header('X-Bunny-Cache: BYPASS');
+        header('X-Bunny-Cache-Control: no-cache, no-store, must-revalidate, max-age=0');
+    }
+});
+
+// FlyingPress cache exclusion for pages with province cookies
+add_filter('flying_press_exclude_urls', function($exclude_urls) {
+    // Exclude pages that might have province cookies
+    $exclude_urls[] = '/';
+    $exclude_urls[] = '/shop/';
+    $exclude_urls[] = '/cart/';
+    $exclude_urls[] = '/checkout/';
+    $exclude_urls[] = '/my-account/';
+    
+    return $exclude_urls;
+});
+
+// FlyingPress cookie exclusion
+add_filter('flying_press_exclude_cookies', function($exclude_cookies) {
+    $exclude_cookies[] = 'province';
+    return $exclude_cookies;
+});
+
+// FlyingPress user agent exclusion for dynamic content
+add_filter('flying_press_exclude_user_agents', function($exclude_user_agents) {
+    // Exclude bots and crawlers that might cache content
+    $exclude_user_agents[] = 'bot';
+    $exclude_user_agents[] = 'crawler';
+    $exclude_user_agents[] = 'spider';
+    
+    return $exclude_user_agents;
+});
+
