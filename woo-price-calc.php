@@ -138,9 +138,8 @@ function age_verification_dialog() {
     // PHP code to generate the HTML for the form
     // Check if the province session exists
   
-    // Check if province session exists - if yes, don't show dialog
-    if (has_province_session()) {
-        error_log('Age verification dialog: Province session exists, hiding dialog');
+    // Check if province cookie exists - if yes, don't show dialog
+    if (has_province_cookie()) {
         return; // Don't show dialog if province is already set
     }
     
@@ -419,7 +418,7 @@ function custom_checkout_css() {
 
 function disable_select2_for_state_field($args, $key, $value) {
   
-    if (in_array($key, array('billing_state', 'shipping_state')) && get_province_session_enhanced() && !is_admin_simulating_customer_role()) {
+    if (in_array($key, array('billing_state', 'shipping_state')) && get_province_cookie() && !is_admin_simulating_customer_role()) {
       
 
         // Set the field as read-only
@@ -465,8 +464,8 @@ function handle_d_age_verification_form() {
         // Sanitize the province value
         $province = sanitize_text_field($_POST['province']);
         
-        // Use WooCommerce session for better CDN compatibility
-        set_province_session_enhanced($province);
+        // Use simple cookie storage
+        set_province_cookie($province);
         
         // Also set cookie as fallback for non-JavaScript users
         setcookie('province', $province, time() + (86400 * 60), "/");
@@ -495,10 +494,10 @@ function change_default_checkout_state($value, $input) {
       
         if ($input === 'billing_state' || $input === 'shipping_state') {
             // Use WooCommerce session for better CDN compatibility
-            $province = get_province_session_enhanced();
-            if ($province) { 
-                return $province;
-            }
+                    $province = get_province_cookie();
+        if ($province) { 
+            return $province;
+        }
         }
    // }
 
@@ -508,8 +507,8 @@ function change_default_checkout_state($value, $input) {
 add_action('woocommerce_checkout_process', 'validate_billing_shipping_state');
 
 function validate_billing_shipping_state() {
-    // Use WooCommerce session for better CDN compatibility
-    $province = get_province_session_enhanced();
+    // Use simple cookie storage
+    $province = get_province_cookie();
     if ($province) {
         
         if (empty($_POST['billing_state'])) {
@@ -609,7 +608,7 @@ function get_curent_tax_province($product){
   
 
     // Use WooCommerce session for better CDN compatibility
-    $customer_zone = get_province_session_enhanced();
+    $customer_zone = get_province_cookie();
     
     $tax = 0;
     if (check_taxable_categories($product) && $customer_zone) { 
@@ -1475,7 +1474,7 @@ function add_province_cache_refresh_script() {
         <script>
         jQuery(document).ready(function($) {
             // Force cache refresh when province session changes
-            var currentProvince = '<?php echo get_province_session_enhanced(); ?>';
+            var currentProvince = '<?php echo get_province_cookie(); ?>';
             
             // Check if province changed in session vs cookie
             if (currentProvince && currentProvince !== getCookie('province')) {
@@ -1504,103 +1503,31 @@ function add_province_cache_refresh_script() {
     }
 }
 
-// Enhanced WooCommerce session handling for province storage
-function set_province_session_enhanced($province) {
-    error_log('set_province_session_enhanced() called with province: ' . $province);
+// Simple cookie-based province storage
+function set_province_cookie($province) {
+    // Set cookie with province
+    setcookie('province', $province, time() + (86400 * 60), "/");
+    $_COOKIE['province'] = $province;
     
-    // Store province in WooCommerce session
-    if (function_exists('WC') && WC()->session) {
-        WC()->session->set('selected_province', $province);
-        error_log('Set WC session province: ' . $province);
-        
-        // Also store in user meta if user is logged in
-        if (is_user_logged_in()) {
-            update_user_meta(get_current_user_id(), 'selected_province', $province);
-            error_log('Updated user meta province: ' . $province);
-        }
-        
-        // Store in transient for immediate access
-        $customer_id = WC()->session->get_customer_id();
-        if ($customer_id) {
-            set_transient('province_' . $customer_id, $province, 86400 * 60);
-            error_log('Set transient province for customer ' . $customer_id . ': ' . $province);
-        }
-        
-        // Also set cookie as backup
-        setcookie('province', $province, time() + (86400 * 60), "/");
-        $_COOKIE['province'] = $province;
-        error_log('Set cookie province: ' . $province);
-        
-        // Clear caches when province changes
-        if (function_exists('wp_cache_flush')) {
-            wp_cache_flush();
-        }
-        
-        if (function_exists('flying_press_clear_cache')) {
-            flying_press_clear_cache();
-        }
-        
-        if (function_exists('rocket_clean_domain')) {
-            rocket_clean_domain();
-        }
-        
-        error_log('Province session set successfully');
-        return true;
-    } else {
-        error_log('WC session not available, cannot set province');
+    // Clear FlyingPress cache if available
+    if (function_exists('flying_press_clear_cache')) {
+        flying_press_clear_cache();
     }
     
-    return false;
+    return true;
 }
 
-// Enhanced province session retrieval
-function get_province_session_enhanced() {
-    $province = null;
-    
-    // 1. Check WooCommerce session first
-    if (function_exists('WC') && WC()->session) {
-        $province = WC()->session->get('selected_province');
+// Simple cookie-based province retrieval
+function get_province_cookie() {
+    if (isset($_COOKIE['province'])) {
+        return sanitize_text_field($_COOKIE['province']);
     }
-    
-    // 2. Check transient if session is empty
-    if (!$province && function_exists('WC') && WC()->session) {
-        $customer_id = WC()->session->get_customer_id();
-        if ($customer_id) {
-            $province = get_transient('province_' . $customer_id);
-        }
-    }
-    
-    // 3. Check user meta if user is logged in
-    if (!$province && is_user_logged_in()) {
-        $province = get_user_meta(get_current_user_id(), 'selected_province', true);
-        
-        // Update session if found in user meta
-        if ($province && function_exists('WC') && WC()->session) {
-            WC()->session->set('selected_province', $province);
-        }
-    }
-    
-    // 4. Fallback to cookie if everything else fails
-    if (!$province && isset($_COOKIE['province'])) {
-        $province = sanitize_text_field($_COOKIE['province']);
-        
-        // Update session with cookie value
-        if ($province && function_exists('WC') && WC()->session) {
-            WC()->session->set('selected_province', $province);
-        }
-    }
-    
-    // Ensure we return the correct type - if no province found, return null explicitly
-    if (empty($province)) {
-        $province = null;
-    }
-    
-    return $province;
+    return null;
 }
 
-// Check if province is set using session
-function has_province_session() {
-    $province = get_province_session_enhanced();
+// Check if province is set using cookie
+function has_province_cookie() {
+    $province = get_province_cookie();
     return $province !== null && $province !== '';
 }
 
