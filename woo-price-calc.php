@@ -214,12 +214,106 @@ function age_verification_dialog() {
 
 }
 
+// Enhanced cache control for FlyingPress + CDN compatibility
 add_action('send_headers', function() {
     if (in_array('no-province', get_body_class())) { // Check for the age verification class
-        header('Cache-Control: no-cache, must-revalidate, max-age=0');
+        // Stronger cache control headers for CDN compatibility
+        header('Cache-Control: no-cache, no-store, must-revalidate, max-age=0, private');
         header('Pragma: no-cache');
+        header('Expires: 0');
+        header('X-Accel-Expires: 0');
+        header('X-Cache-Status: BYPASS');
+        
+        // Additional headers for CDN
+        header('Surrogate-Control: no-store');
+        header('CDN-Cache-Control: no-cache');
     }
 });
+
+// FlyingPress specific cache exclusion
+add_filter('flying_press_exclude_urls', function($exclude_urls) {
+    // Exclude age verification pages from FlyingPress cache
+    if (isset($_COOKIE['province']) && !empty($_COOKIE['province'])) {
+        $exclude_urls[] = '.*';
+    }
+    return $exclude_urls;
+});
+
+// Exclude from FlyingPress cache when province cookie is not set
+add_filter('flying_press_exclude_cookies', function($exclude_cookies) {
+    $exclude_cookies[] = 'province';
+    return $exclude_cookies;
+});
+
+// Enhanced cookie handling for CDN compatibility
+function set_province_cookie_enhanced($province) {
+    // Clear any existing cookie first
+    if (isset($_COOKIE['province'])) {
+        setcookie('province', '', time() - 3600, '/');
+        unset($_COOKIE['province']);
+    }
+    
+    // Set cookie with enhanced parameters for CDN compatibility
+    $cookie_params = array(
+        'expires' => time() + (86400 * 60), // 60 days
+        'path' => '/',
+        'domain' => $_SERVER['HTTP_HOST'],
+        'secure' => is_ssl(),
+        'httponly' => false, // Allow JavaScript access
+        'samesite' => 'Lax' // CDN compatible
+    );
+    
+    // Set cookie using setcookie with all parameters
+    setcookie('province', $province, $cookie_params);
+    
+    // Also set in $_COOKIE superglobal for immediate access
+    $_COOKIE['province'] = $province;
+    
+    // Force cookie to be sent immediately
+    if (function_exists('wp_cache_flush')) {
+        wp_cache_flush();
+    }
+    
+    // Clear FlyingPress cache if available
+    if (function_exists('flying_press_clear_cache')) {
+        flying_press_clear_cache();
+    }
+    
+    // Clear WP Rocket cache if available
+    if (function_exists('rocket_clean_domain')) {
+        rocket_clean_domain();
+    }
+}
+
+// Enhanced province cookie validation
+function get_province_cookie_enhanced() {
+    // Check multiple sources for province
+    $province = null;
+    
+    // 1. Check $_COOKIE superglobal
+    if (isset($_COOKIE['province']) && !empty($_COOKIE['province'])) {
+        $province = sanitize_text_field($_COOKIE['province']);
+    }
+    
+    // 2. Check HTTP headers (for CDN compatibility)
+    if (!$province && isset($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+        // CDN might pass province in custom headers
+        $headers = getallheaders();
+        if (isset($headers['X-Province'])) {
+            $province = sanitize_text_field($headers['X-Province']);
+        }
+    }
+    
+    // 3. Check session if cookie fails
+    if (!$province && !session_id()) {
+        session_start();
+    }
+    if (!$province && isset($_SESSION['province'])) {
+        $province = sanitize_text_field($_SESSION['province']);
+    }
+    
+    return $province;
+}
 
 
 /**
@@ -278,7 +372,7 @@ function custom_checkout_css() {
 
 function disable_select2_for_state_field($args, $key, $value) {
   
-    if (in_array($key, array('billing_state', 'shipping_state')) && isset($_COOKIE['province']) && !is_admin_simulating_customer_role()) {
+    if (in_array($key, array('billing_state', 'shipping_state')) && get_province_cookie_enhanced() && !is_admin_simulating_customer_role()) {
       
 
         // Set the field as read-only
@@ -323,22 +417,36 @@ function handle_d_age_verification_form() {
     if (isset($_POST['province'])) {
         // Sanitize the province value
         $province = sanitize_text_field($_POST['province']);
-        // Set the cookie to store the selected province
-        // The cookie will expire in 60 days
-          setcookie('province', $province, time() + (86400 * 60), "/");
         
-      
-       
-       
+        // Use enhanced cookie setting for CDN compatibility
+        set_province_cookie_enhanced($province);
+        
+        // Also store in session as backup
+        if (!session_id()) {
+            session_start();
+        }
+        $_SESSION['province'] = $province;
+        
+        // Store in user meta if user is logged in
+        if (is_user_logged_in()) {
+            update_user_meta(get_current_user_id(), 'selected_province', $province);
+        }
     }
-     // Redirect to the current page
-   if (function_exists('rocket_clean_domain')) {
-      //  rocket_clean_domain();
-        //wp_cache_flush();
+    
+    // Enhanced cache clearing for CDN
+    if (function_exists('rocket_clean_domain')) {
+        rocket_clean_domain();
     }
-   // Redirect to the current page
+    
+    if (function_exists('flying_press_clear_cache')) {
+        flying_press_clear_cache();
+    }
+    
+    // Clear all caches
+    wp_cache_flush();
+    
+    // Redirect to the current page
     wp_redirect($_SERVER['HTTP_REFERER']);
-   wp_cache_flush();
     exit;
 }
 
@@ -358,11 +466,10 @@ function change_default_checkout_state($value, $input) {
     //if(!is_admin_simulating_customer_role()){
       
         if ($input === 'billing_state' || $input === 'shipping_state') {
-            if (isset($_COOKIE['province'])) { 
-                // Sanitize the province value
-                $province = sanitize_text_field($_COOKIE['province']);
+            // Use enhanced cookie function for CDN compatibility
+            $province = get_province_cookie_enhanced();
+            if ($province) { 
                 return $province;
-                //wp_cache_flush();
             }
         }
    // }
@@ -373,8 +480,9 @@ function change_default_checkout_state($value, $input) {
 add_action('woocommerce_checkout_process', 'validate_billing_shipping_state');
 
 function validate_billing_shipping_state() {
-    if (isset($_COOKIE['province'])) {
-        $province = sanitize_text_field($_COOKIE['province']);
+    // Use enhanced cookie function for CDN compatibility
+    $province = get_province_cookie_enhanced();
+    if ($province) {
         
         if (empty($_POST['billing_state'])) {
             $_POST['billing_state'] = $province;
@@ -467,7 +575,8 @@ function check_taxable_categories($product) {
 function get_curent_tax_province($product){
   
 
-    $customer_zone = isset($_COOKIE['province']) ? $_COOKIE['province'] : null;
+    // Use enhanced cookie function for CDN compatibility
+    $customer_zone = get_province_cookie_enhanced();
     
     $tax = 0;
     if (check_taxable_categories($product) && $customer_zone) { 
@@ -1262,3 +1371,102 @@ function validate_cart_items_for_province() {
     }
 }
 add_action( 'woocommerce_checkout_process', 'validate_cart_items_for_province' );
+
+// Additional FlyingPress compatibility hooks
+add_action('init', function() {
+    // Start session early for better cookie handling
+    if (!session_id() && !is_admin()) {
+        session_start();
+    }
+});
+
+// Exclude province-dependent pages from FlyingPress cache
+add_filter('flying_press_exclude_urls', function($exclude_urls) {
+    // Always exclude checkout and cart pages
+    $exclude_urls[] = '/cart/';
+    $exclude_urls[] = '/checkout/';
+    $exclude_urls[] = '/my-account/';
+    
+    // Exclude pages when province cookie is not set
+    if (!get_province_cookie_enhanced()) {
+        $exclude_urls[] = '.*';
+    }
+    
+    return $exclude_urls;
+});
+
+// Exclude specific cookies from FlyingPress cache
+add_filter('flying_press_exclude_cookies', function($exclude_cookies) {
+    $exclude_cookies[] = 'province';
+    $exclude_cookies[] = 'woocommerce_cart_hash';
+    $exclude_cookies[] = 'woocommerce_items_in_cart';
+    return $exclude_cookies;
+});
+
+// Exclude user-specific content from cache
+add_filter('flying_press_exclude_user_agents', function($exclude_user_agents) {
+    // Exclude when province cookie is not set
+    if (!get_province_cookie_enhanced()) {
+        $exclude_user_agents[] = '.*';
+    }
+    return $exclude_user_agents;
+});
+
+// Force cache refresh when province changes
+add_action('wp_ajax_update_province', 'force_cache_refresh_on_province_change');
+add_action('wp_ajax_nopriv_update_province', 'force_cache_refresh_on_province_change');
+
+function force_cache_refresh_on_province_change() {
+    // Clear all caches when province changes
+    if (function_exists('wp_cache_flush')) {
+        wp_cache_flush();
+    }
+    
+    if (function_exists('flying_press_clear_cache')) {
+        flying_press_clear_cache();
+    }
+    
+    if (function_exists('rocket_clean_domain')) {
+        rocket_clean_domain();
+    }
+    
+    wp_die('Cache cleared');
+}
+
+// Add JavaScript to handle province changes and force cache refresh
+add_action('wp_footer', 'add_province_cache_refresh_script');
+
+function add_province_cache_refresh_script() {
+    if (get_province_cookie_enhanced()) {
+        ?>
+        <script>
+        jQuery(document).ready(function($) {
+            // Force cache refresh when province cookie changes
+            var currentProvince = '<?php echo get_province_cookie_enhanced(); ?>';
+            
+            // Check if province changed
+            if (currentProvince && currentProvince !== getCookie('province')) {
+                // Province changed, clear cache
+                $.ajax({
+                    url: '<?php echo admin_url('admin-ajax.php'); ?>',
+                    type: 'POST',
+                    data: {
+                        action: 'update_province'
+                    },
+                    success: function() {
+                        location.reload();
+                    }
+                });
+            }
+            
+            // Helper function to get cookie
+            function getCookie(name) {
+                var value = "; " + document.cookie;
+                var parts = value.split("; " + name + "=");
+                if (parts.length == 2) return parts.pop().split(";").shift();
+            }
+        });
+        </script>
+        <?php
+    }
+}

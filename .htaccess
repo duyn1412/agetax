@@ -1,0 +1,71 @@
+# CDN Cache Exclusion for Province Cookie System
+# This file ensures CDN doesn't cache pages that depend on province cookies
+
+# Exclude age verification and province-dependent pages from CDN cache
+<IfModule mod_headers.c>
+    # Set cache control headers for province-dependent pages
+    <FilesMatch "\.(php|html)$">
+        Header set Cache-Control "no-cache, no-store, must-revalidate, max-age=0, private"
+        Header set Pragma "no-cache"
+        Header set Expires "0"
+        Header set X-Accel-Expires "0"
+        Header set X-Cache-Status "BYPASS"
+        Header set Surrogate-Control "no-store"
+        Header set CDN-Cache-Control "no-cache"
+    </FilesMatch>
+    
+    # Force no-cache for checkout and cart pages
+    <FilesMatch "(checkout|cart|my-account)\.php$">
+        Header set Cache-Control "no-cache, no-store, must-revalidate, max-age=0, private"
+        Header set Pragma "no-cache"
+        Header set Expires "0"
+    </FilesMatch>
+</IfModule>
+
+# Exclude specific URLs from CDN cache
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    
+    # Exclude age verification pages
+    RewriteCond %{HTTP_COOKIE} !province
+    RewriteRule .* - [E=NO_CACHE:1]
+    
+    # Exclude checkout and cart pages
+    RewriteRule ^(checkout|cart|my-account)/.*$ - [E=NO_CACHE:1]
+    
+    # Set environment variable for no-cache
+    RewriteCond %{ENV:NO_CACHE} 1
+    RewriteRule .* - [E=NO_CACHE:1]
+</IfModule>
+
+# Force no-cache when province cookie is not set
+<IfModule mod_headers.c>
+    # Check if province cookie exists
+    SetEnvIf Cookie "province=" HAS_PROVINCE
+    
+    # Set no-cache headers when province cookie is missing
+    Header always set Cache-Control "no-cache, no-store, must-revalidate, max-age=0, private" env=!HAS_PROVINCE
+    Header always set Pragma "no-cache" env=!HAS_PROVINCE
+    Header always set Expires "0" env=!HAS_PROVINCE
+</IfModule>
+
+# WordPress specific rules
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+    
+    # Exclude admin and login pages
+    RewriteRule ^wp-admin/.*$ - [E=NO_CACHE:1]
+    RewriteRule ^wp-login\.php$ - [E=NO_CACHE:1]
+    
+    # Exclude AJAX requests
+    RewriteCond %{HTTP:X-Requested-With} XMLHttpRequest
+    RewriteRule .* - [E=NO_CACHE:1]
+</IfModule>
+
+# Force no-cache for environment variable
+<IfModule mod_headers.c>
+    Header always set Cache-Control "no-cache, no-store, must-revalidate, max-age=0, private" env=NO_CACHE
+    Header always set Pragma "no-cache" env=NO_CACHE
+    Header always set Expires "0" env=NO_CACHE
+</IfModule>
