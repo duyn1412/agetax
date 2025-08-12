@@ -1555,15 +1555,11 @@ function set_province_session_enhanced($province) {
 
 // Enhanced province session retrieval
 function get_province_session_enhanced() {
-    error_log('=== get_province_session_enhanced() START ===');
     $province = null;
     
     // 1. Check WooCommerce session first
     if (function_exists('WC') && WC()->session) {
         $province = WC()->session->get('selected_province');
-        error_log('WC Session check - Province: ' . ($province ?: 'NULL'));
-    } else {
-        error_log('WC Session not available');
     }
     
     // 2. Check transient if session is empty
@@ -1571,31 +1567,26 @@ function get_province_session_enhanced() {
         $customer_id = WC()->session->get_customer_id();
         if ($customer_id) {
             $province = get_transient('province_' . $customer_id);
-            error_log('Transient check - Customer ID: ' . $customer_id . ', Province: ' . ($province ?: 'NULL'));
         }
     }
     
     // 3. Check user meta if user is logged in
     if (!$province && is_user_logged_in()) {
         $province = get_user_meta(get_current_user_id(), 'selected_province', true);
-        error_log('User meta check - Province: ' . ($province ?: 'NULL'));
         
         // Update session if found in user meta
         if ($province && function_exists('WC') && WC()->session) {
             WC()->session->set('selected_province', $province);
-            error_log('Updated WC session with user meta province: ' . $province);
         }
     }
     
     // 4. Fallback to cookie if everything else fails
     if (!$province && isset($_COOKIE['province'])) {
         $province = sanitize_text_field($_COOKIE['province']);
-        error_log('Cookie fallback - Province: ' . $province);
         
         // Update session with cookie value
         if ($province && function_exists('WC') && WC()->session) {
             WC()->session->set('selected_province', $province);
-            error_log('Updated WC session with cookie province: ' . $province);
         }
     }
     
@@ -1604,44 +1595,13 @@ function get_province_session_enhanced() {
         $province = null;
     }
     
-    error_log('Final province result: ' . ($province ?: 'NULL'));
-    error_log('Final province type: ' . gettype($province));
-    error_log('=== get_province_session_enhanced() END - RETURNING: ' . ($province ?: 'NULL') . ' ===');
     return $province;
 }
 
 // Check if province is set using session
 function has_province_session() {
-    error_log('=== has_province_session() START ===');
-    
     $province = get_province_session_enhanced();
-    error_log('Province from get_province_session_enhanced(): ' . ($province ?: 'NULL'));
-    error_log('Province type: ' . gettype($province));
-    error_log('Province === null: ' . ($province === null ? 'TRUE' : 'FALSE'));
-    error_log('Province !== null: ' . ($province !== null ? 'TRUE' : 'FALSE'));
-    error_log('Province === "": ' . ($province === '' ? 'TRUE' : 'FALSE'));
-    error_log('Province !== "": ' . ($province !== '' ? 'TRUE' : 'FALSE'));
-    
-    $result = $province !== null && $province !== '';
-    error_log('Initial result calculation: ' . ($result ? 'TRUE' : 'FALSE'));
-    error_log('Logic breakdown: (' . ($province !== null ? 'TRUE' : 'FALSE') . ' && ' . ($province !== '' ? 'TRUE' : 'FALSE') . ') = ' . ($result ? 'TRUE' : 'FALSE'));
-    
-    // Force return FALSE if province is NULL to fix the logic issue
-    if ($province === null) {
-        error_log('Province is NULL, forcing return FALSE');
-        error_log('=== has_province_session() END - RETURNING FALSE ===');
-        return false;
-    }
-    
-    if ($province === '') {
-        error_log('Province is empty string, forcing return FALSE');
-        error_log('=== has_province_session() END - RETURNING FALSE ===');
-        return false;
-    }
-    
-    error_log('Final result: ' . ($result ? 'TRUE' : 'FALSE'));
-    error_log('=== has_province_session() END - RETURNING ' . ($result ? 'TRUE' : 'FALSE') . ' ===');
-    return $result;
+    return $province !== null && $province !== '';
 }
 
 // Ensure WooCommerce session is initialized early
