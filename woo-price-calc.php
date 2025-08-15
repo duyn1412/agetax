@@ -2,9 +2,10 @@
 /**
  * Plugin Name: Custom Age Verifier and Tax Plugin
  * Description: A custom plugin to add an age verifier and apply taxes to specific product categories.
- * Version: 1.0
+ * Version: 1.1
  * Author: Block Agency
  * Author URI: https://blockagency.co
+ * Updated: 2025-01-15 - Enhanced province-based pricing and URL parameter support
  */
 
  if (!defined('ABSPATH')) {
