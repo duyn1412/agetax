@@ -362,32 +362,23 @@ function handle_d_age_verification_form() {
     if (isset($_POST['province'])) {
         // Sanitize the province value
         $province = sanitize_text_field($_POST['province']);
-        // Set the cookie to store the selected province
-        // The cookie will expire in 60 days
-          setcookie('province', $province, time() + (86400 * 60), "/");
         
-      
-       
-       
+        // Get the current page URL without query parameters
+        $current_url = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http") . "://$_SERVER[HTTP_HOST]$_SERVER[REQUEST_URI]";
+        $current_url = strtok($current_url, '?'); // Remove existing query parameters
+        
+        // Redirect to the current page with province parameter
+        $redirect_url = add_query_arg('province', $province, $current_url);
+        wp_redirect($redirect_url);
+        exit;
     }
-     // Redirect to the current page
-   if (function_exists('rocket_clean_domain')) {
-      //  rocket_clean_domain();
-        //wp_cache_flush();
-    }
-   // Redirect to the current page
+    
+    // If no province, redirect back to current page
     wp_redirect($_SERVER['HTTP_REFERER']);
-   wp_cache_flush();
     exit;
 }
 
-function no_cache_for_referer($uri) {
-    if ($_SERVER['REQUEST_URI'] == $_SERVER['HTTP_REFERER']) {
-        return false;
-    }
-    return $uri;
-}
-add_filter('rocket_no_cache', 'no_cache_for_referer');
+
 
 
 add_filter('woocommerce_checkout_get_value', 'change_default_checkout_state', 10, 2);
@@ -432,17 +423,7 @@ function validate_billing_shipping_state() {
 
 
 
-// Clear product transients (cache) on shop and category pages
-add_action('woocommerce_before_shop_loop_item', function() {
-    global $product;
-    wc_delete_product_transients($product->get_id());
-});
 
-
-add_action('woocommerce_before_single_product', function() {
-    global $product;
-    wc_delete_product_transients($product->get_id());
-});
 
 
 
