@@ -5,7 +5,6 @@
  * Version: 1.1
  * Author: Block Agency
  * Author URI: https://blockagency.co
- * Updated: 2025-01-15 - Enhanced province-based pricing and URL parameter support
  */
 
  if (!defined('ABSPATH')) {
